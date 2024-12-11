@@ -1,12 +1,12 @@
 from openai import OpenAI
 from credentials import OPENAI_API_KEY, NOTION_API_KEY
 import requests
+from pydantic import BaseModel
+from typing import Optional
 
 
 
 
-
-# TODO: Setup ChatGPT API to generate notes
 
 # IMPORTANT: Notion to Anki flow
 # 1. Take initial notes in Notion: Unstructured section.
@@ -89,26 +89,37 @@ def format_with_openai(notes):
             """
     prompt = prompt_1 + notes + prompt_2
 
+    """
+    Using structured output to get the response in JSON format
+    """
+    class Card(BaseModel):
+        question: str
+        answer: str
+        image: Optional[str]
+    class Anki(BaseModel):
+        anki: list[Card]
+
     client = OpenAI(
         api_key= OPENAI_API_KEY
     )
 
-    completion = client.chat.completions.create(
-        model="gpt-4o",
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o-2024-08-06",
         messages=[
-            {"role": "system", "content": "Eres un experto asistente de estudio que ayuda a organizar apuntes en formato de flashcards"},
+            {
+                "role": "system",
+                "content": "Eres un experto asistente de estudio que ayuda a organizar apuntes en formato de flashcards"},
             {
                 "role": "user",
                 "content": prompt
             }
-        ]
+        ],
+        response_format=Anki,
     )
 
-    response_string = completion.choices[0].message.content
+    response_parsed = completion.choices[0].message.parsed
 
-
-
-    # return response['choices'][0]['message']['content']
+    return response_parsed
 
 def update_notion_page(page_id, formatted_content):
     """Actualiza una página de Notion con contenido en formato toggle list."""
@@ -160,8 +171,8 @@ def main():
 
 
     clean_content = "\n".join(clean_content)
-    print("Clean content:")
-    print(clean_content)
+    # print("Clean content:")
+    # print(clean_content)
 
     format_with_openai(clean_content)
     # TODO: string to json, add support to claude and mistral
