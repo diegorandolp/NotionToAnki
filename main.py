@@ -1,12 +1,14 @@
 from openai import OpenAI
-from credentials import OPENAI_API_KEY, NOTION_API_KEY
+from credentials import OPENAI_API_KEY, NOTION_API_KEY, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
 import requests
 from pydantic import BaseModel
 from typing import Optional
-
-
-
-
+from PIL import Image
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+import json
+import os
 
 # IMPORTANT: Notion to Anki flow
 # 1. Take initial notes in Notion: Unstructured section.
@@ -183,6 +185,52 @@ def update_notion_page(page_id, formatted_content):
     response.raise_for_status()
 
     return response.json()
+def process_raw_notion_page(page_content):
+
+    if not os.path.exists("images"):
+        os.makedirs("images")
+
+
+    cloudinary.config(
+            cloud_name = CLOUDINARY_CLOUD_NAME,
+            api_key = CLOUDINARY_API_KEY,
+            api_secret = CLOUDINARY_API_SECRET,
+            secure=True
+        )
+    clean_content = []
+    for block in page_content["results"]:
+        try:
+            temp_type = block["type"]
+            if temp_type in allowed_block_types:
+                if len(block[temp_type]["rich_text"]) > 0:
+                    pass
+                clean_content.append(block[temp_type]["rich_text"][0]["plain_text"])
+            elif temp_type == "image":
+                image_info = ""
+                if block[temp_type]["caption"]:
+                    image_info = block[temp_type]["caption"][0]["plain_text"]
+                # Save the image locally
+                temp_image = requests.get(block[temp_type]["file"]["url"]).content
+                new_image_path = f"images/{block['id']}.png"
+                with open(new_image_path, "wb") as f:
+                    f.write(temp_image)
+                # Post the image to Cloudinary
+                new_url_image = cloudinary.uploader.upload(new_image_path)
+
+                print("URL Cloudinary: ", new_url_image)
+
+                image_info = image_info + " : " + new_url_image["url"]
+                clean_content.append(image_info)
+            elif temp_type in ignored_block_types:
+                pass
+            else :
+                print("Block type not supported", temp_type)
+        except Exception as e:
+            print("Error processing block:", block)
+
+
+    clean_content = "\n".join(clean_content)
+    return clean_content
 
 def main():
 
@@ -191,37 +239,17 @@ def main():
     # IMPORTANT: This code only support the first level of blocks of a Notion page and certain block types
 
     try:
-        page_content = get_notion_page_content(page_id_source)
+        raw_page_content = get_notion_page_content(page_id_source)
+        # extract only the text content from the page
+        processed_page_content = process_raw_notion_page(raw_page_content)
 
-        clean_content = []
-        for block in page_content["results"]:
-            try:
-                temp_type = block["type"]
-                if temp_type in allowed_block_types:
-                    if len(block[temp_type]["rich_text"]) > 0:
-                        pass
-                    clean_content.append(block[temp_type]["rich_text"][0]["plain_text"])
-                elif temp_type == "image":
-                    image_info = ""
-                    if block[temp_type]["caption"]:
-                        image_info = block[temp_type]["caption"][0]["plain_text"]
-                    image_info = image_info + " : " + block[temp_type]["file"]["url"]
-                    clean_content.append(image_info)
-                elif temp_type in ignored_block_types:
-                    pass
-                else :
-                    print("Block type not supported", temp_type)
-            except Exception as e:
-                print("Error processing block:", block)
-
-
-        clean_content = "\n".join(clean_content)
-        # print("Clean content:")
-        # print(clean_content)
-
-        formatted_content = format_with_openai(clean_content)
-        # TODO: string to json, add support to claude and mistral
-        # # Paso 3: Actualizar la página de Notion
+        print("Clean content:")
+        print(processed_page_content)
+        # return a JSON object with the structure of the Anki object
+        formatted_content = format_with_openai(processed_page_content)
+        # TODO: , add support to claude and mistral
+        # TODO: delete the remanent images and notion blocks
+        # Updated Notion page (appends the new content)
         update_notion_page(page_id_destine, formatted_content)
         print("Página actualizada con éxito.")
     except Exception as e:
