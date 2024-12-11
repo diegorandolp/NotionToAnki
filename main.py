@@ -23,6 +23,13 @@ HEADERS = {
     "Notion-Version": "2022-06-28"
 }
 
+class Card(BaseModel):
+        question: str
+        answer: str
+        image: Optional[str]
+class Anki(BaseModel):
+        anki: list[Card]
+
 def get_notion_page_content(page_id):
     # Get the content of the first block level of a Notion page
     url = f"{NOTION_BASE_URL}/blocks/{page_id}/children"
@@ -92,12 +99,7 @@ def format_with_openai(notes):
     """
     Using structured output to get the response in JSON format
     """
-    class Card(BaseModel):
-        question: str
-        answer: str
-        image: Optional[str]
-    class Anki(BaseModel):
-        anki: list[Card]
+
 
     client = OpenAI(
         api_key= OPENAI_API_KEY
@@ -126,59 +128,104 @@ def update_notion_page(page_id, formatted_content):
     url = f"{NOTION_BASE_URL}/blocks/{page_id}/children"
     # Convertir el contenido formateado en bloques de Notion
     toggle_blocks = []
-    for line in formatted_content.split("\n"):
-        if line.strip():
-            toggle_blocks.append({
+    for card in formatted_content.anki:
+        toggle_block ={
+            "object": "block",
+            "type": "toggle",
+            "toggle": {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text":
+                        {
+                            "content": card.question,
+                            "link": None
+                        }
+                    }
+                ],
+                "color": "default",
+                "children": [
+                    {
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [
+                                {
+                                    "type": "text",
+                                    "text":
+                                    {
+                                        "content": card.answer,
+                                        "link": None
+                                    }
+                                }
+                            ],
+                            "color": "default"
+                        }
+                    }
+                ]
+            }
+        }
+        if card.image is not None:
+            toggle_block["toggle"]["children"].append({
                 "object": "block",
-                "type": "toggle",
-                "toggle": {
-                    "text": [{"type": "text", "text": {"content": line.strip()}}]
+                "type": "image",
+                "image": {
+                    "type": "external",
+                    "external": {
+                        "url": card.image
+                    }
                 }
             })
+        toggle_blocks.append(toggle_block)
     # Enviar a Notion
     data = {"children": toggle_blocks}
     response = requests.patch(url, headers=HEADERS, json=data)
     response.raise_for_status()
+
     return response.json()
 
 def main():
 
-    page_id = "158869c35fd380cd9d88cbd06bb969c0"
-
+    page_id_source = "158869c35fd380cd9d88cbd06bb969c0"
+    page_id_destine = "159869c35fd3806e9c5cd2919c70ef3e"
     # IMPORTANT: This code only support the first level of blocks of a Notion page and certain block types
-    page_content = get_notion_page_content(page_id)
 
-    clean_content = []
-    for block in page_content["results"]:
-        try:
-            temp_type = block["type"]
-            if temp_type in allowed_block_types:
-                if len(block[temp_type]["rich_text"]) > 0:
+    try:
+        page_content = get_notion_page_content(page_id_source)
+
+        clean_content = []
+        for block in page_content["results"]:
+            try:
+                temp_type = block["type"]
+                if temp_type in allowed_block_types:
+                    if len(block[temp_type]["rich_text"]) > 0:
+                        pass
+                    clean_content.append(block[temp_type]["rich_text"][0]["plain_text"])
+                elif temp_type == "image":
+                    image_info = ""
+                    if block[temp_type]["caption"]:
+                        image_info = block[temp_type]["caption"][0]["plain_text"]
+                    image_info = image_info + " : " + block[temp_type]["file"]["url"]
+                    clean_content.append(image_info)
+                elif temp_type in ignored_block_types:
                     pass
-                clean_content.append(block[temp_type]["rich_text"][0]["plain_text"])
-            elif temp_type == "image":
-                image_info = ""
-                if block[temp_type]["caption"]:
-                    image_info = block[temp_type]["caption"][0]["plain_text"]
-                image_info = image_info + " : " + block[temp_type]["file"]["url"]
-                clean_content.append(image_info)
-            elif temp_type in ignored_block_types:
-                pass
-            else :
-                print("Block type not supported", temp_type)
-        except Exception as e:
-            print("Error processing block:", block)
+                else :
+                    print("Block type not supported", temp_type)
+            except Exception as e:
+                print("Error processing block:", block)
 
 
-    clean_content = "\n".join(clean_content)
-    # print("Clean content:")
-    # print(clean_content)
+        clean_content = "\n".join(clean_content)
+        # print("Clean content:")
+        # print(clean_content)
 
-    format_with_openai(clean_content)
-    # TODO: string to json, add support to claude and mistral
-    # # Paso 3: Actualizar la página de Notion
-    # update_notion_page(page_id, formatted_content)
-    # print("Página actualizada con éxito.")
+        formatted_content = format_with_openai(clean_content)
+        # TODO: string to json, add support to claude and mistral
+        # # Paso 3: Actualizar la página de Notion
+        update_notion_page(page_id_destine, formatted_content)
+        print("Página actualizada con éxito.")
+    except Exception as e:
+        print("Error:", e)
 
 if __name__ == "__main__":
     main()
