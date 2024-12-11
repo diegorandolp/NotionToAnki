@@ -1,0 +1,34 @@
+# Ignorar archivos de credenciales sensibles
+credentials.py
+
+# Archivos generados por el sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos de configuración de entornos virtuales
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+
+# Entornos virtuales
+env/
+venv/
+
+# Archivos de configuración de PyCharm
+*.iml
+.idea/
+*.ipr
+*.iws
+
+# Archivos de logs
+*.log
+
+# Archivos de dependencia
+*.lock
+pip-log.txt
+
+# Archivos temporales o de compilación
+*.swp
+*.swo
+*.tmp
