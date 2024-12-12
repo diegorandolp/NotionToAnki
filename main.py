@@ -37,6 +37,7 @@ def get_notion_page_content(page_id):
     url = f"{NOTION_BASE_URL}/blocks/{page_id}/children"
     response = requests.get(url, headers=HEADERS)
     response.raise_for_status()
+    print("Página de Notion obtenida con éxito")
     return response.json()
 
 def format_with_openai(notes):
@@ -122,7 +123,7 @@ def format_with_openai(notes):
     )
 
     response_parsed = completion.choices[0].message.parsed
-
+    print("Contenido formateado con éxito")
     return response_parsed
 
 def update_notion_page(page_id, formatted_content):
@@ -179,12 +180,47 @@ def update_notion_page(page_id, formatted_content):
                 }
             })
         toggle_blocks.append(toggle_block)
-    # Enviar a Notion
+    # Send data to existing page
     data = {"children": toggle_blocks}
     response = requests.patch(url, headers=HEADERS, json=data)
     response.raise_for_status()
+    print("Página de Notion actualizada con éxito")
+
+    # Create a new temporary page with the content
+    new_page_data = {
+        "parent": {
+            "type": "page_id",
+            "page_id": page_id
+        },
+        "properties": {
+            "title": {
+                "title": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "content": "TempPage"
+                        }
+                    }
+                ]
+            }
+        },
+        "children": toggle_blocks
+
+    }
+    response = requests.post(f"{NOTION_BASE_URL}/pages", headers=HEADERS, json=new_page_data)
+    response.raise_for_status()
+    temp_page_id = response.json()["id"]
+    print("Página de Notion temporal creada con exito")
+    # Send data to the new page
+    # data = {"children": toggle_blocks}
+    # response = requests.patch(f"{NOTION_BASE_URL}/blocks/{temp_page_id}/children", headers=HEADERS, json=data)
+    # response.raise_for_status()
+    #
+    #
+    # print("Página de Notion temporal llenada con éxito")
 
     return response.json()
+
 def process_raw_notion_page(page_content):
 
     if not os.path.exists("images"):
@@ -202,8 +238,8 @@ def process_raw_notion_page(page_content):
         try:
             temp_type = block["type"]
             if temp_type in allowed_block_types:
-                if len(block[temp_type]["rich_text"]) > 0:
-                    pass
+                if len(block[temp_type]["rich_text"]) == 0:
+                    continue
                 clean_content.append(block[temp_type]["rich_text"][0]["plain_text"])
             elif temp_type == "image":
                 image_info = ""
@@ -217,7 +253,6 @@ def process_raw_notion_page(page_content):
                 # Post the image to Cloudinary
                 new_url_image = cloudinary.uploader.upload(new_image_path)
 
-                print("URL Cloudinary: ", new_url_image)
 
                 image_info = image_info + " : " + new_url_image["url"]
                 clean_content.append(image_info)
@@ -230,12 +265,11 @@ def process_raw_notion_page(page_content):
 
 
     clean_content = "\n".join(clean_content)
+    print("Contenido de Notion procesado con éxito")
     return clean_content
 
-def main():
+def notion_to_notion(page_id_source, page_id_destine):
 
-    page_id_source = "158869c35fd380cd9d88cbd06bb969c0"
-    page_id_destine = "159869c35fd3806e9c5cd2919c70ef3e"
     # IMPORTANT: This code only support the first level of blocks of a Notion page and certain block types
 
     try:
@@ -243,17 +277,28 @@ def main():
         # extract only the text content from the page
         processed_page_content = process_raw_notion_page(raw_page_content)
 
-        print("Clean content:")
-        print(processed_page_content)
         # return a JSON object with the structure of the Anki object
         formatted_content = format_with_openai(processed_page_content)
-        # TODO: , add support to claude and mistral
-        # TODO: delete the remanent images and notion blocks
+        # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
+
         # Updated Notion page (appends the new content)
         update_notion_page(page_id_destine, formatted_content)
-        print("Página actualizada con éxito.")
+        print("Done.")
     except Exception as e:
         print("Error:", e)
+
+def notion_to_anki(page_id_source):
+    pass
+
+def main():
+
+    page_id_source = "15a869c35fd3800186ffd5474a7878c7"
+    page_id_destine = "15a869c35fd38007b69ce51920b71643"
+
+    # Reorganize the notes from the source page to the destine page using the ChatGPT API
+    notion_to_notion(page_id_source, page_id_destine)
+    # TODO: JUST RUN THE CODE TO TEST IT
+    # TODO: add Anki Connect support
 
 if __name__ == "__main__":
     main()

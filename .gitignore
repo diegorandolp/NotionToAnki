@@ -10,7 +10,7 @@ Thumbs.db
 .idea/
 __pycache__/
 *.pyc
-
+images/
 # Entornos virtuales
 env/
 venv/
