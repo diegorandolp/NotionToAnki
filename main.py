@@ -1,4 +1,7 @@
 from openai import OpenAI
+from selenium.webdriver import Keys
+from selenium.webdriver.support.wait import WebDriverWait
+
 from credentials import OPENAI_API_KEY, NOTION_API_KEY, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
 import requests
 from pydantic import BaseModel
@@ -9,6 +12,13 @@ import cloudinary.uploader
 import cloudinary.api
 import json
 import os
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.action_chains import ActionChains
+import time
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support import expected_conditions as EC
 
 # IMPORTANT: Notion to Anki flow
 # 1. Take initial notes in Notion: Unstructured section.
@@ -93,6 +103,7 @@ def format_with_openai(notes):
             Notas importantes sobre las imágenes:
             - Si se hace referencia a una imagen en las notas (por ejemplo, "En la figura 7 se puede ver..."), incluya el enlace de la imagen en el campo "image" de la flashcard correspondiente.
             - Sólo incluya el campo "imagen" si hay una referencia de imagen real para esa ficha específica.
+            - No te limites en la cantidad de flashcards que creas necesarias para cubrir todos los conceptos y temas de los apuntes.
 
             Acuérdate de procesar toda la información de las notas, creando tantas fichas como sea necesario para cubrir todos los conceptos e ideas importantes. El objetivo es crear un conjunto completo de fichas que ayuden a los alumnos a repasar y reforzar su comprensión de los temas de matemáticas y programación tratados en los apuntes originales.
             El formato de respuesta debe ser solo un objeto JSON con la estructura dada. No incluya ninguna información adicional en su respuesta.
@@ -107,7 +118,7 @@ def format_with_openai(notes):
     client = OpenAI(
         api_key= OPENAI_API_KEY
     )
-
+    # Assuming max_tokens is by default the maximum value
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-2024-08-06",
         messages=[
@@ -209,17 +220,10 @@ def update_notion_page(page_id, formatted_content):
     }
     response = requests.post(f"{NOTION_BASE_URL}/pages", headers=HEADERS, json=new_page_data)
     response.raise_for_status()
-    temp_page_id = response.json()["id"]
+    temp_page_url = response.json()["url"]
     print("Página de Notion temporal creada con exito")
-    # Send data to the new page
-    # data = {"children": toggle_blocks}
-    # response = requests.patch(f"{NOTION_BASE_URL}/blocks/{temp_page_id}/children", headers=HEADERS, json=data)
-    # response.raise_for_status()
-    #
-    #
-    # print("Página de Notion temporal llenada con éxito")
 
-    return response.json()
+    return temp_page_url
 
 def process_raw_notion_page(page_content):
 
@@ -281,24 +285,107 @@ def notion_to_notion(page_id_source, page_id_destine):
         formatted_content = format_with_openai(processed_page_content)
         # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
 
+
         # Updated Notion page (appends the new content)
-        update_notion_page(page_id_destine, formatted_content)
-        print("Done.")
+        temp_page_url = update_notion_page(page_id_destine, formatted_content)
+        print("Done")
+        return temp_page_url
+
     except Exception as e:
         print("Error:", e)
 
-def notion_to_anki(page_id_source):
+def notion_to_2anki(temp_page_url):
+    try:
+
+        # Open Chrome with new profile bc of the remote debugging and default profile looks corrupted
+        # whateva is the directory where the new profile was created
+        os.system('start chrome --remote-debugging-port=8989 --user-data-dir=C:\\Code\\whateva"')
+        chrome_options = Options()
+        chrome_options.add_experimental_option("debuggerAddress", "localhost:8989")
+        driver = webdriver.Chrome(options=chrome_options)
+
+
+        """
+        Notion
+        """
+
+        # Assuming you are already logged in Notion
+        driver.get(temp_page_url)
+        time.sleep(5)
+        driver.find_element(By.CLASS_NAME, "notion-topbar-more-button").click()
+        time.sleep(1)
+
+        # Get the export button by its svg icon
+        menu_item_with_arrow = driver.find_element(By.CSS_SELECTOR, 'div[role="menuitem"] svg.exportArrow')
+        export_button = menu_item_with_arrow.find_element(By.XPATH, './ancestor::div[@role="menuitem"]')
+        export_button.click()
+        time.sleep(1)
+
+        """
+        If HTML was selected previously, the selection will be remembered
+        """
+        # # Open the export format menu
+        # markdown_div = driver.find_element(By.XPATH, '//div[text()="Markdown & CSV"]')
+        # markdown_div.click()
+        # time.sleep(1)
+        #
+        # # Select HTML format
+        # html_div = driver.find_element(By.XPATH, '//div[text()="HTML"]')
+        # html_div.click()
+        # time.sleep(1)
+
+        # Click Export button
+        export_button = driver.find_element(By.XPATH, '//div[text()="Export"]')
+        export_button.click()
+        time.sleep(1)
+        # Wait until the dialog of waiting for the export is gone
+        WebDriverWait(driver, 60).until(
+            EC.invisibility_of_element_located((By.CLASS_NAME, "notion-dialog"))
+        )
+        time.sleep(3)
+
+        """
+        2Anki
+        """
+
+        # Get the file name of the downloaded file
+        files = os.listdir(r'C:\Users\Usuario\Downloads')
+        # Filtrar solo los archivos .zip
+        zip_files = [f for f in files if f.endswith(".zip")]
+        zip_files = [os.path.join(r'C:\Users\Usuario\Downloads', f) for f in zip_files]
+        # Obtener el archivo más reciente
+        latest_file = max(zip_files, key=os.path.getctime)
+        latest_file = os.path.join(r'C:\Users\Usuario\Downloads', latest_file)
+
+        driver.get("https://2anki.net/")
+        time.sleep(5)
+
+        # Upload the notion page in .zip format
+        file_input = driver.find_element(By.CLASS_NAME, 'file-input')
+        file_input.send_keys(latest_file)
+
+        driver.quit()
+    except Exception as e:
+        print("Error:", e)
+
+def two_anki_to_anki_connect():
     pass
 
 def main():
 
-    page_id_source = "15a869c35fd3800186ffd5474a7878c7"
-    page_id_destine = "15a869c35fd38007b69ce51920b71643"
+    page_id_source = "158869c35fd380cd9d88cbd06bb969c0"
+    page_id_destine = "159869c35fd3806e9c5cd2919c70ef3e"
 
-    # Reorganize the notes from the source page to the destine page using the ChatGPT API
-    notion_to_notion(page_id_source, page_id_destine)
-    # TODO: JUST RUN THE CODE TO TEST IT
+    # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
+    # temp_page_url = notion_to_notion(page_id_source, page_id_destine)
+    temp_page_url = "https://www.notion.so/Temp-ML-15a869c35fd380a7a47ecfd1a6b98914?pvs=4"
+    # 2. Convert the notes from Notion to html and then to Anki format using 2Anki
+    notion_to_2anki(temp_page_url)
+
     # TODO: add Anki Connect support
+    # TODO: add english support
+
+    two_anki_to_anki_connect()
 
 if __name__ == "__main__":
     main()

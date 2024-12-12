@@ -32,3 +32,4 @@ pip-log.txt
 *.swp
 *.swo
 *.tmp
+*.exe
