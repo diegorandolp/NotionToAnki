@@ -50,65 +50,127 @@ def get_notion_page_content(page_id):
     print("Página de Notion obtenida con éxito")
     return response.json()
 
-def format_with_openai(notes):
+def format_with_openai(notes, language):
+    prompt = ""
+    if language == "es":
+        prompt_1 = """
+                Tu tarea consiste en revisar, corregir y organizar los apuntes de los cursos de matemáticas y programación. Tu objetivo es transformar estos apuntes potencialmente desorganizados, incompletos o incorrectos en un conjunto bien estructurado de flashcards al estilo Anki. Estos son los apuntes con los que trabajarás:
 
-    prompt_1 = """
-            Tu tarea consiste en revisar, corregir y organizar los apuntes de los cursos de matemáticas y programación. Tu objetivo es transformar estos apuntes potencialmente desorganizados, incompletos o incorrectos en un conjunto bien estructurado de flashcards al estilo Anki. Estos son los apuntes con los que trabajarás:
+                <notas>
+                """
 
-            <notas>
-            """
+        prompt_2 = """
+                </notas>
 
-    prompt_2 = """
-            </notas>
+                Sigue estos pasos para procesar las notas:
 
-            Sigue estos pasos para procesar las notas:
+                1. Lea detenidamente todo el conjunto de notas.
 
-            1. Lea detenidamente todo el conjunto de notas.
+                2. Identifique y corrija cualquier error o inexactitud en la información.
 
-            2. Identifique y corrija cualquier error o inexactitud en la información.
+                3. Completar cualquier concepto o información que falte y que sea necesaria para una comprensión completa del tema.
 
-            3. Completar cualquier concepto o información que falte y que sea necesaria para una comprensión completa del tema.
+                4. Establecer y aclarar conexiones entre diferentes ideas y conceptos.
 
-            4. Establecer y aclarar conexiones entre diferentes ideas y conceptos.
+                5. Añadir el contexto necesario para mejorar la comprensión del tema.
 
-            5. Añadir el contexto necesario para mejorar la comprensión del tema.
+                6. Organizar la información en conceptos discretos que puedan transformarse en pares pregunta-respuesta.
 
-            6. Organizar la información en conceptos discretos que puedan transformarse en pares pregunta-respuesta.
+                7. Crear flashcards al estilo Anki formulando preguntas claras y concisas y respuestas completas para cada concepto.
 
-            7. Crear flashcards al estilo Anki formulando preguntas claras y concisas y respuestas completas para cada concepto.
+                8. Si los apuntes hacen referencia a imágenes, incluye el enlace de la imagen en la parte de la respuesta de la flashcard.
 
-            8. Si los apuntes hacen referencia a imágenes, incluye el enlace de la imagen en la parte de la respuesta de la flashcard.
+                Al redactar preguntas y respuestas
+                - Asegúrese de que las preguntas sean específicas y sin ambigüedades.
+                - Proporcione respuestas detalladas que expliquen completamente el concepto.
+                - Utilice un lenguaje claro, conciso y adecuado al tema.
+                - Incluya ejemplos o aplicaciones pertinentes cuando proceda.
 
-            Al redactar preguntas y respuestas
-            - Asegúrese de que las preguntas sean específicas y sin ambigüedades.
-            - Proporcione respuestas detalladas que expliquen completamente el concepto.
-            - Utilice un lenguaje claro, conciso y adecuado al tema.
-            - Incluya ejemplos o aplicaciones pertinentes cuando proceda.
-
-            Formatee su resultado como un objeto JSON con la siguiente estructura:
-            {
-              "anki": [
+                Formatee su resultado como un objeto JSON con la siguiente estructura:
                 {
-                  "question": "Tu pregunta aquí",
-                  "answer": "Tu respuesta aquí",
-                  "image": "Enlace de imagen aquí (si procede, de lo contrario omita este campo)"
-                },
-                {
-                  "question": "Siguiente pregunta",
-                  "answer": "Siguiente respuesta"
+                  "anki": [
+                    {
+                      "question": "Tu pregunta aquí",
+                      "answer": "Tu respuesta aquí",
+                      "image": "Enlace de imagen aquí (si procede, de lo contrario omita este campo)"
+                    },
+                    {
+                      "question": "Siguiente pregunta",
+                      "answer": "Siguiente respuesta"
+                    }
+                  ]
                 }
-              ]
-            }
 
-            Notas importantes sobre las imágenes:
-            - Si se hace referencia a una imagen en las notas (por ejemplo, "En la figura 7 se puede ver..."), incluya el enlace de la imagen en el campo "image" de la flashcard correspondiente.
-            - Sólo incluya el campo "imagen" si hay una referencia de imagen real para esa ficha específica.
-            - No te limites en la cantidad de flashcards que creas necesarias para cubrir todos los conceptos y temas de los apuntes.
+                Notas importantes sobre las imágenes:
+                - Si se hace referencia a una imagen en las notas (por ejemplo, "En la figura 7 se puede ver..."), incluya el enlace de la imagen en el campo "image" de la flashcard correspondiente.
+                - Sólo incluya el campo "imagen" si hay una referencia de imagen real para esa flashcard específica.
+                - Asegurate de incluir todas las imagenes en al menos una flashcard.
+                - No te limites en la cantidad de flashcards que creas necesarias para cubrir todos los conceptos y temas de los apuntes.
 
-            Acuérdate de procesar toda la información de las notas, creando tantas fichas como sea necesario para cubrir todos los conceptos e ideas importantes. El objetivo es crear un conjunto completo de fichas que ayuden a los alumnos a repasar y reforzar su comprensión de los temas de matemáticas y programación tratados en los apuntes originales.
-            El formato de respuesta debe ser solo un objeto JSON con la estructura dada. No incluya ninguna información adicional en su respuesta.
-            """
-    prompt = prompt_1 + notes + prompt_2
+                Acuérdate de procesar toda la información de las notas, creando tantas fichas como sea necesario para cubrir todos los conceptos e ideas importantes. El objetivo es crear un conjunto completo de fichas que ayuden a los alumnos a repasar y reforzar su comprensión de los temas de matemáticas y programación tratados en los apuntes originales.
+                El formato de respuesta debe ser solo un objeto JSON con la estructura dada. No incluya ninguna información adicional en su respuesta.
+                """
+        prompt = prompt_1 + notes + prompt_2
+    elif language == "en":
+        prompt_1 = """
+                Your task is to review, correct, and organize the notes from the math and programming courses. Your goal is to transform these potentially disorganized, incomplete, or incorrect notes into a well-structured set of Anki-style flashcards. Here are the notes you'll be working with:
+
+                <notes>
+                """
+
+        prompt_2 = """
+                </notes>
+
+                Follow these steps to process the notes:
+
+                1. Read through the entire set of notes carefully.
+
+                2. Identify and correct any errors or inaccuracies in the information.
+
+                3. Fill in any missing concepts or information that is necessary for a complete understanding of the topic.
+
+                4. Establish and clarify connections between different ideas and concepts.
+
+                5. Add any necessary context to enhance the understanding of the topic.
+
+                6. Organize the information into discrete concepts that can be transformed into question-answer pairs.
+
+                7. Create Anki-style flashcards by formulating clear and concise questions and complete answers for each concept.
+
+                8. If the notes reference images, include the image link in the answer part of the flashcard.
+
+                When crafting questions and answers:
+                - Ensure that questions are specific and unambiguous.
+                - Provide detailed answers that fully explain the concept.
+                - Use clear, concise language that is appropriate to the topic.
+                - Include relevant examples or applications where appropriate.
+
+                Format your output as a JSON object with the following structure:
+                {
+                  "anki": [
+                    {
+                      "question": "Your question here",
+                      "answer": "Your answer here",
+                      "image": "Image link here (if applicable, otherwise omit this field)"
+                    },
+                    {
+                      "question": "Next question",
+                      "answer": "Next answer"
+                    }
+                  ]
+                }
+
+                Important notes about images:
+                - If an image is referenced in the notes (e.g., "Figure 7 shows..."), include the image link in the "image" field of the corresponding flashcard.
+                - Only include the "image" field if there is an actual image reference for that specific flashcard.
+                - Make sure to include all images in at least one flashcard.
+                - Do not limit yourself in the number of flashcards you create to cover all the important concepts and topics from the notes.
+
+                Remember to process all the information from the notes, creating as many cards as necessary to cover all the important concepts and ideas. The goal is to create a comprehensive set of cards that will help students review and reinforce their understanding of the math and programming topics covered in the original notes. 
+                The response format should be a JSON object with the given structure only. Do not include any additional information in your response.
+                """
+        prompt = prompt_1 + notes + prompt_2
+
 
     """
     Using structured output to get the response in JSON format
@@ -124,7 +186,7 @@ def format_with_openai(notes):
         messages=[
             {
                 "role": "system",
-                "content": "Eres un experto asistente de estudio que ayuda a organizar apuntes en formato de flashcards"},
+                "content": "You are an AI assistant helping a student organize their notes into Anki flashcards."},
             {
                 "role": "user",
                 "content": prompt
@@ -272,7 +334,7 @@ def process_raw_notion_page(page_content):
     print("Contenido de Notion procesado con éxito")
     return clean_content
 
-def notion_to_notion(page_id_source, page_id_destine):
+def notion_to_notion(page_id_source, page_id_destine, language):
 
     # IMPORTANT: This code only support the first level of blocks of a Notion page and certain block types
 
@@ -282,7 +344,7 @@ def notion_to_notion(page_id_source, page_id_destine):
         processed_page_content = process_raw_notion_page(raw_page_content)
 
         # return a JSON object with the structure of the Anki object
-        formatted_content = format_with_openai(processed_page_content)
+        formatted_content = format_with_openai(processed_page_content, language)
         # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
 
 
@@ -373,12 +435,12 @@ def two_anki_to_anki_connect():
 
 def main():
 
-    page_id_source = "158869c35fd380cd9d88cbd06bb969c0"
-    page_id_destine = "159869c35fd3806e9c5cd2919c70ef3e"
-
+    page_id_source = "15a869c35fd38051a77de06fe6423dc8"
+    page_id_destine = "15a869c35fd38007b69ce51920b71643"
+    language = "en"
     # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
-    # temp_page_url = notion_to_notion(page_id_source, page_id_destine)
-    temp_page_url = "https://www.notion.so/Temp-ML-15a869c35fd380a7a47ecfd1a6b98914?pvs=4"
+    temp_page_url = notion_to_notion(page_id_source, page_id_destine, language)
+    print(temp_page_url)
     # 2. Convert the notes from Notion to html and then to Anki format using 2Anki
     notion_to_2anki(temp_page_url)
 
