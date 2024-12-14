@@ -347,7 +347,6 @@ def notion_to_notion(page_id_source, page_id_destine, language):
 
         # return a JSON object with the structure of the Anki object
         formatted_content = format_with_openai(processed_page_content, language)
-        # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
 
 
         # Updated Notion page (appends the new content)
@@ -500,14 +499,73 @@ def verify_file_creation_time(file_path, timeout):
         return False
     return True
 
-def two_anki_to_anki_connect():
-    pass
+
+def execute_action(action):
+    r = requests.post('http://localhost:8765', json=action)
+    r_json = r.json()
+    if r_json['error'] is not None:
+        print("Error in Anki Connect:", r_json['error'])
+        exit(2)
+    return r_json
+
+def two_anki_to_anki_connect(notion_deck_path, name_deck_destiny):
+    deckName = notion_deck_path.split('\\')[-1]
+    deckName = '.'.join(deckName.split('.')[:-1])
+    # Get only the name if the deck name is repeated
+    if deckName[-3] and deckName[-3] == '(' and deckName[-2].isdigit() and deckName[-1] == ')':
+        deckName = ' '.join(deckName.split(' ')[:-1])
+
+    action = {
+        "action": "importPackage",
+        "version": 6,
+        "params": {
+            "path": notion_deck_path
+        }
+    }
+    execute_action(action)
+
+
+    action = {
+        "action": "findCards",
+        "version": 6,
+        "params": {
+            "query": f"deck:{deckName}"
+        }
+    }
+    card_ids = execute_action(action)['result']
+    if len(card_ids) == 0:
+        print("No cards found in deck")
+        exit(1)
+
+    action = {
+        "action": "changeDeck",
+        "version": 6,
+        "params": {
+            "cards": card_ids,
+            "deck": name_deck_destiny
+        }
+    }
+    execute_action(action)
+
+    # IMPORTANT: This function doesn't detect error
+    action = {
+        "action": "deleteDecks",
+        "version": 6,
+        "params": {
+            "decks": [deckName],
+            "cardsToo": True
+        }
+    }
+    execute_action(action)
+    print("Deck importado con éxito")
+
 
 def main():
 
     page_id_source = "15a869c35fd380a7a47ecfd1a6b98914"
     page_id_destine = "15a869c35fd380869505f2308094fdff"
     language = "es"
+    deck_name_destiny = "FinalTestDeck"
 
     # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
     temp_page_url = notion_to_notion(page_id_source, page_id_destine, language)
@@ -515,10 +573,9 @@ def main():
     # 2. Convert the notes from Notion to html and then to Anki format using 2Anki
     notion_deck_path = notion_to_2anki(temp_page_url)
 
-    # TODO: add Anki Connect support
-    # TODO: add english support
     # 3. Import the Anki deck file using Anki Connect as API
-    two_anki_to_anki_connect()
+    two_anki_to_anki_connect(notion_deck_path, deck_name_destiny)
 
+    # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
 if __name__ == "__main__":
     main()
