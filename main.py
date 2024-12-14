@@ -19,6 +19,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 import time
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support import expected_conditions as EC
+import psutil
+
 
 # IMPORTANT: Notion to Anki flow
 # 1. Take initial notes in Notion: Unstructured section.
@@ -361,11 +363,12 @@ def notion_to_2anki(temp_page_url):
 
         # Open Chrome with new profile bc of the remote debugging and default profile looks corrupted
         # whateva is the directory where the new profile was created
-        os.system('start chrome --remote-debugging-port=8989 --user-data-dir=C:\\Code\\whateva"')
+        port_chrome = 8989
+        os.system(f'start chrome --remote-debugging-port={port_chrome} --user-data-dir=C:\\Code\\whateva"')
         chrome_options = Options()
         chrome_options.add_experimental_option("debuggerAddress", "localhost:8989")
         driver = webdriver.Chrome(options=chrome_options)
-
+        time.sleep(5)
 
         """
         Notion
@@ -410,43 +413,111 @@ def notion_to_2anki(temp_page_url):
         2Anki
         """
 
-        # Get the file name of the downloaded file
-        files = os.listdir(r'C:\Users\Usuario\Downloads')
-        # Filtrar solo los archivos .zip
-        zip_files = [f for f in files if f.endswith(".zip")]
-        zip_files = [os.path.join(r'C:\Users\Usuario\Downloads', f) for f in zip_files]
-        # Obtener el archivo más reciente
-        latest_file = max(zip_files, key=os.path.getctime)
-        latest_file = os.path.join(r'C:\Users\Usuario\Downloads', latest_file)
+
+        # Get the latest zip that contains the Notion page in the downloads folder
+        download_folder = r'C:\Users\Usuario\Downloads'
+        latest_file_path = get_latest_file_with_extension(download_folder, '.zip')
+
+        # Verification if the file was created at maximum 5 minutes ago
+        is_the_correct_file = verify_file_creation_time(latest_file_path, 300)
+        if not is_the_correct_file:
+            print("The file was not created in the last 5 minutes")
+            exit(1)
 
         driver.get("https://2anki.net/")
         time.sleep(5)
 
         # Upload the notion page in .zip format
         file_input = driver.find_element(By.CLASS_NAME, 'file-input')
-        file_input.send_keys(latest_file)
+        file_input.send_keys(latest_file_path)
+        time.sleep(5) # Wait for the file to be uploaded
 
+        # Wait for the Anki deck to be downloaded
+        download_wait(download_folder, 60)
+
+        latest_anki_deck_file_path = get_latest_file_with_extension(download_folder, '.apkg')
+        # Verification if the file was created at maximum 5 minutes ago
+        is_the_correct_file = verify_file_creation_time(latest_anki_deck_file_path, 300)
+        if not is_the_correct_file:
+            print("The file was not created in the last 5 minutes")
+            exit(1)
+
+
+        cerrar_chrome_por_puerto(port_chrome)
         driver.quit()
+
+
+        return latest_anki_deck_file_path
     except Exception as e:
-        print("Error:", e)
+        print("Error in notion_to_2anki:", e)
+
+def encontrar_proceso_por_puerto(puerto):
+    for process in psutil.process_iter(['pid', 'name', 'connections']):
+        try:
+            if process.info['name'] == 'chrome.exe':
+                for conn in process.connections(kind='inet'):
+                    if conn.laddr.port == puerto:  # Verifica si el puerto coincide
+                        return process  # Devuelve el proceso si lo encuentra
+        except (psutil.AccessDenied, psutil.NoSuchProcess):
+            pass
+    return None
+
+def cerrar_chrome_por_puerto(puerto):
+    proceso = encontrar_proceso_por_puerto(puerto)
+    if proceso:
+        proceso.terminate()  # Finaliza el proceso
+        print(f"Proceso de Chrome en el puerto {puerto} cerrado.")
+    else:
+        print(f"No se encontró un proceso de Chrome en el puerto {puerto}.")
+
+def download_wait(directory, timeout):
+    seconds = 0
+    dl_wait = True
+    while dl_wait and seconds < timeout:
+        time.sleep(1)
+        dl_wait = False
+        for fname in os.listdir(directory):
+            if fname.endswith('.crdownload') and verify_file_creation_time(os.path.join(directory, fname), 300):
+                dl_wait = True
+        seconds += 1
+    return seconds
+
+def get_latest_file_with_extension(directory, extension):
+    files = os.listdir(directory)
+    # Filtrar solo los archivos .zip
+    files = [f for f in files if f.endswith(extension)]
+    files = [os.path.join(directory, f) for f in files]
+    # Obtener el archivo más reciente
+    latest_file = max(files, key=os.path.getctime)
+
+    return latest_file
+
+def verify_file_creation_time(file_path, timeout):
+    creation_time_file = os.path.getctime(file_path)
+    now = time.time()
+    difference_time = now - creation_time_file
+    if difference_time > timeout:
+        return False
+    return True
 
 def two_anki_to_anki_connect():
     pass
 
 def main():
 
-    page_id_source = "15a869c35fd38051a77de06fe6423dc8"
-    page_id_destine = "15a869c35fd38007b69ce51920b71643"
-    language = "en"
+    page_id_source = "15a869c35fd380a7a47ecfd1a6b98914"
+    page_id_destine = "15a869c35fd380869505f2308094fdff"
+    language = "es"
+
     # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
     temp_page_url = notion_to_notion(page_id_source, page_id_destine, language)
-    print(temp_page_url)
+
     # 2. Convert the notes from Notion to html and then to Anki format using 2Anki
-    notion_to_2anki(temp_page_url)
+    notion_deck_path = notion_to_2anki(temp_page_url)
 
     # TODO: add Anki Connect support
     # TODO: add english support
-
+    # 3. Import the Anki deck file using Anki Connect as API
     two_anki_to_anki_connect()
 
 if __name__ == "__main__":
