@@ -1,2 +1,2 @@
-﻿# NotionToAnki.
+﻿# Notion To Anki.
 
