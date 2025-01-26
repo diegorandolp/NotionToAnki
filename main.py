@@ -380,7 +380,7 @@ def notion_to_2anki(temp_page_url):
         time.sleep(1)
 
         # Get the export button by its svg icon
-        menu_item_with_arrow = driver.find_element(By.CSS_SELECTOR, 'div[role="menuitem"] svg.exportArrow')
+        menu_item_with_arrow = driver.find_element(By.CSS_SELECTOR, 'div[role="menuitem"] svg.arrowUpLine')
         export_button = menu_item_with_arrow.find_element(By.XPATH, './ancestor::div[@role="menuitem"]')
         export_button.click()
         time.sleep(1)
@@ -562,10 +562,10 @@ def two_anki_to_anki_connect(notion_deck_path, name_deck_destiny):
 
 def main():
 
-    page_id_source = "15a869c35fd380a7a47ecfd1a6b98914"
-    page_id_destine = "15a869c35fd380869505f2308094fdff"
-    language = "es"
-    deck_name_destiny = "FinalTestDeck"
+    page_id_source = "15a869c35fd38051a77de06fe6423dc8"
+    page_id_destine = "15a869c35fd38007b69ce51920b71643"
+    language = "en"
+    deck_name_destiny = "Artificial Intelligence"
 
     # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
     temp_page_url = notion_to_notion(page_id_source, page_id_destine, language)
