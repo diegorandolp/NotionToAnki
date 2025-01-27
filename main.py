@@ -412,7 +412,7 @@ def notion_to_2anki(temp_page_url):
         2Anki
         """
 
-
+        # IMPORTANT: There is no guarantee that latest file is the correct one
         # Get the latest zip that contains the Notion page in the downloads folder
         download_folder = r'C:\Users\Usuario\Downloads'
         latest_file_path = get_latest_file_with_extension(download_folder, '.zip')
@@ -445,8 +445,8 @@ def notion_to_2anki(temp_page_url):
         cerrar_chrome_por_puerto(port_chrome)
         driver.quit()
 
-
-        return latest_anki_deck_file_path
+        # return the path of Notion page zip and the Anki deck file
+        return latest_file_path, latest_anki_deck_file_path
     except Exception as e:
         print("Error in notion_to_2anki:", e)
 
@@ -559,23 +559,53 @@ def two_anki_to_anki_connect(notion_deck_path, name_deck_destiny):
     execute_action(action)
     print("Deck importado con éxito")
 
+def clean_files(temp_page_url, notion_deck_path, notion_page_zip_path):
+    # Delete files from the download folder
+    try:
+        os.remove(notion_deck_path)
+        os.remove(notion_page_zip_path)
+        print("Archivos eliminados con éxito de Descargas")
+    except Exception as e:
+        print("Error deleting files from downloads folder:", e)
+
+    # Delete the TempPage from Notion
+    id_page = temp_page_url.split("/")[-1].split("-")[-1]
+    try:
+        url = f"{NOTION_BASE_URL}/pages/{id_page}"
+        data = {"archived": True}
+        response = requests.patch(url, headers=HEADERS, json=data)
+        response.raise_for_status()
+        print("Página de Notion Temp eliminada con éxito")
+    except Exception as e:
+        print("Error deleting TempPage from Notion:", e)
 
 def main():
 
-    page_id_source = "15a869c35fd38051a77de06fe6423dc8"
-    page_id_destine = "15a869c35fd38007b69ce51920b71643"
-    language = "en"
-    deck_name_destiny = "Artificial Intelligence"
+    page_id_source =  "15a869c35fd38051a77de06fe6423dc8"
+    page_id_destine = "188869c35fd38011aca6c22370bbadc3"
+    language = "es"
+    #deck_name_destiny = "Artificial Intelligence"
+    deck_name_destiny = "IdeaVim"
 
     # 1. Reorganize the notes from the source page to the destine page using the ChatGPT API
     temp_page_url = notion_to_notion(page_id_source, page_id_destine, language)
 
     # 2. Convert the notes from Notion to html and then to Anki format using 2Anki
-    notion_deck_path = notion_to_2anki(temp_page_url)
+    notion_page_zip_path, notion_deck_path = notion_to_2anki(temp_page_url)
 
     # 3. Import the Anki deck file using Anki Connect as API
     two_anki_to_anki_connect(notion_deck_path, deck_name_destiny)
 
+    # 4. Delete the remanent files
+    clean_files(temp_page_url, notion_deck_path, notion_page_zip_path)
+
     # TODO: delete the remanent images and notion blocks (tempPage, newNotionPage, local images)
+    # TODO: add support to bullet items and code blocks
+
+
+    # TODO: delete the tempPage from Notion
+    # TODO: improve comments about the stages of the process
+    # TODO: clean content of tempPage source page
+    # TODO: verificar la elimnacion de tempPage from Notion
 if __name__ == "__main__":
     main()
